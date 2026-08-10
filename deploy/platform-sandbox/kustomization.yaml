@@ -11,5 +11,5 @@ patches:
       name: demo-app
     patch: |
       - op: replace
-        path: /spec/resources/2/spec/values/httpRoute/hostnames/0
+        path: /spec/resources/1/spec/values/httpRoute/hostnames/0
         value: "demo-app.platform-sandbox.demo-company.site"
