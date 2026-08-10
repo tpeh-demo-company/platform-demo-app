@@ -1,0 +1,86 @@
+---
+apiVersion: fluxcd.controlplane.io/v1
+kind: ResourceSet
+metadata:
+  name: demo-app
+  namespace: flux-system
+spec:
+  inputsFrom:
+    - kind: ResourceSetInputProvider
+      name: demo-company-chart
+    - kind: ResourceSetInputProvider
+      name: demo-app-image
+  resources:
+    - apiVersion: source.toolkit.fluxcd.io/v1beta2
+      kind: OCIRepository
+      metadata:
+        name: demo-app
+        namespace: demo
+      spec:
+        interval: 5m
+        url: oci://ghcr.io/tpeh-demo-company/platform-helm-chart/demo-company
+        ref:
+          tag: "<< inputs.demo_company_chart.tag >>"
+        verify:
+          provider: cosign
+          matchOIDCIdentity:
+            - issuer: "^https://token.actions.githubusercontent.com$"
+              subject: "^https://github.com/tpeh-demo-company/.*$"
+    - apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      metadata:
+        name: demo-app
+        namespace: demo
+      spec:
+        interval: 5m
+        chartRef:
+          kind: OCIRepository
+          name: demo-app
+        values:
+          replicaCount: 2
+          image:
+            repository: ghcr.io/tpeh-demo-company/platform-demo-app
+            tag: "<< inputs.demo_app_image.tag >>@<< inputs.demo_app_image.digest >>"
+            pullPolicy: Always
+          service:
+            port: 5000
+          httpRoute:
+            enabled: true
+            parentRefs:
+              - name: gateway
+                namespace: istio-system
+                sectionName: https
+            hostnames:
+              - demo-app.domain.com
+            rules:
+              - matches:
+                  - path:
+                      type: PathPrefix
+                      value: /
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          podSecurityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          autoscaling:
+            # only one worker node
+            enabled: false
+
