@@ -4,7 +4,7 @@ apiVersion: fluxcd.controlplane.io/v1
 kind: ResourceSetInputProvider
 metadata:
   name: demo-company-chart
-  namespace: demo
+  namespace: flux-system
   annotations:
     fluxcd.controlplane.io/reconcileEvery: "15m"
 spec:
@@ -19,7 +19,7 @@ apiVersion: fluxcd.controlplane.io/v1
 kind: ResourceSetInputProvider
 metadata:
   name: demo-app-image
-  namespace: demo
+  namespace: flux-system
   annotations:
     fluxcd.controlplane.io/reconcileEvery: "5m"
 spec:
