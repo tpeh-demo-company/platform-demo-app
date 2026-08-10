@@ -8,7 +8,7 @@ metadata:
     fluxcd.controlplane.io/reconcileEvery: "15m"
 spec:
   type: OCIArtifactTag
-  url: oci://ghcr.io/tpeh-demo-company/platform-demo-app
+  url: oci://ghcr.io/tpeh-demo-company/platform-helm-chart/demo-company
   filter:
     semver: ">=1.0.0"
     limit: 1
