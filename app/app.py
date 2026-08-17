@@ -15,10 +15,32 @@ This app is designed to be deployed to Docker, Kubernetes, or run locally
 for evaluating deployment and platform UX.
 """
 
+import instrumentation  # must be first — initialises the OTel SDK before Flask loads
+
 import json
+import time
 import uuid
 from typing import Dict, List, Tuple, Any
 from datetime import datetime
+
+from opentelemetry import metrics, trace
+from opentelemetry.trace import StatusCode
+
+tracer = trace.get_tracer("demo-app", "1.0.0")
+meter  = metrics.get_meter("demo-app", "1.0.0")
+
+# ── Custom metrics ─────────────────────────────────────────────────────────────
+# Only functional when instrumentation.py is imported first and a
+# PeriodicExportingMetricReader is registered — same gotcha as the Node.js version.
+request_counter  = meter.create_counter(
+    "http_requests_total",
+    description="Total number of HTTP requests",
+)
+request_duration = meter.create_histogram(
+    "http_request_duration_ms",
+    description="HTTP request duration in milliseconds",
+    unit="ms",
+)
 
 
 class InMemoryStore:
@@ -214,55 +236,100 @@ def create_flask_app():
     """
     try:
         from flask import Flask, request, jsonify
+        from opentelemetry.instrumentation.flask import FlaskInstrumentor
 
         app = Flask(__name__)
 
         @app.route("/health", methods=["GET"])
         def health():
-            """Health check endpoint."""
             return jsonify({"status": "healthy"}), 200
 
         @app.route("/items", methods=["GET"])
         def list_items():
-            """List all items."""
-            return jsonify(store.list_all()), 200
+            start = time.time()
+            # startActiveSpan equivalent — span is the active span; any child span
+            # started inside this block is automatically parented to it.
+            with tracer.start_as_current_span("store.list_all") as span:
+                items = store.list_all()
+                span.set_attribute("app.items.count", len(items))
+            request_counter.add(1, {"endpoint": "/items", "method": "GET", "status": "200"})
+            request_duration.record((time.time() - start) * 1000, {"endpoint": "/items"})
+            return jsonify(items), 200
 
         @app.route("/items", methods=["POST"])
         def create_item():
-            """Create a new item."""
+            start = time.time()
             data = request.get_json() or {}
             name = data.get("name")
-
             if not name:
+                request_counter.add(1, {"endpoint": "/items", "method": "POST", "status": "400"})
+                request_duration.record((time.time() - start) * 1000, {"endpoint": "/items"})
                 return jsonify({"error": "Field 'name' is required"}), 400
 
-            item = store.create(name, data.get("description", ""))
+            with tracer.start_as_current_span("store.create") as span:
+                span.set_attribute("app.item.name", name)
+                # Nested child span — auto-parented because store.create is the active span.
+                with tracer.start_as_current_span("store.write") as child:
+                    child.set_attribute("db.system", "in-memory")
+                    item = store.create(name, data.get("description", ""))
+                span.set_attribute("app.item.id", item["id"])
+                span.set_status(StatusCode.OK)
+
+            request_counter.add(1, {"endpoint": "/items", "method": "POST", "status": "201"})
+            request_duration.record((time.time() - start) * 1000, {"endpoint": "/items"})
             return jsonify(item), 201
 
         @app.route("/items/<item_id>", methods=["GET"])
         def get_item(item_id):
-            """Get a specific item."""
-            item = store.read(item_id)
-            if item:
-                return jsonify(item), 200
+            start = time.time()
+            with tracer.start_as_current_span("store.read") as span:
+                span.set_attribute("app.item.id", item_id)
+                item = store.read(item_id)
+                if item:
+                    span.set_status(StatusCode.OK)
+                    request_counter.add(1, {"endpoint": "/items/{id}", "method": "GET", "status": "200"})
+                    request_duration.record((time.time() - start) * 1000, {"endpoint": "/items/{id}"})
+                    return jsonify(item), 200
+                span.set_status(StatusCode.ERROR, f"Item {item_id} not found")
+            request_counter.add(1, {"endpoint": "/items/{id}", "method": "GET", "status": "404"})
+            request_duration.record((time.time() - start) * 1000, {"endpoint": "/items/{id}"})
             return jsonify({"error": f"Item {item_id} not found"}), 404
 
         @app.route("/items/<item_id>", methods=["PUT"])
         def update_item(item_id):
-            """Update an item."""
+            start = time.time()
             data = request.get_json() or {}
-            item = store.update(item_id, **data)
-
-            if item:
-                return jsonify(item), 200
+            with tracer.start_as_current_span("store.update") as span:
+                span.set_attribute("app.item.id", item_id)
+                item = store.update(item_id, **data)
+                if item:
+                    span.set_status(StatusCode.OK)
+                    request_counter.add(1, {"endpoint": "/items/{id}", "method": "PUT", "status": "200"})
+                    request_duration.record((time.time() - start) * 1000, {"endpoint": "/items/{id}"})
+                    return jsonify(item), 200
+                span.set_status(StatusCode.ERROR, f"Item {item_id} not found")
+            request_counter.add(1, {"endpoint": "/items/{id}", "method": "PUT", "status": "404"})
+            request_duration.record((time.time() - start) * 1000, {"endpoint": "/items/{id}"})
             return jsonify({"error": f"Item {item_id} not found"}), 404
 
         @app.route("/items/<item_id>", methods=["DELETE"])
         def delete_item(item_id):
-            """Delete an item."""
-            if store.delete(item_id):
-                return jsonify({"deleted": item_id}), 200
+            start = time.time()
+            with tracer.start_as_current_span("store.delete") as span:
+                span.set_attribute("app.item.id", item_id)
+                if store.delete(item_id):
+                    span.set_status(StatusCode.OK)
+                    request_counter.add(1, {"endpoint": "/items/{id}", "method": "DELETE", "status": "200"})
+                    request_duration.record((time.time() - start) * 1000, {"endpoint": "/items/{id}"})
+                    return jsonify({"deleted": item_id}), 200
+                span.set_status(StatusCode.ERROR, f"Item {item_id} not found")
+            request_counter.add(1, {"endpoint": "/items/{id}", "method": "DELETE", "status": "404"})
+            request_duration.record((time.time() - start) * 1000, {"endpoint": "/items/{id}"})
             return jsonify({"error": f"Item {item_id} not found"}), 404
+
+        # Auto-instruments all Flask routes — creates a span per HTTP request
+        # and propagates trace context from incoming headers.
+        FlaskInstrumentor().instrument_app(app)
 
         return app
 

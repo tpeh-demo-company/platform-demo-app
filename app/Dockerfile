@@ -3,7 +3,8 @@
 FROM python:3.11-slim AS builder
 
 WORKDIR /tmp
-RUN pip install --user --no-cache-dir flask
+COPY requirements.txt .
+RUN pip install --user --no-cache-dir -r requirements.txt
 
 # Stage 2: Runtime
 FROM python:3.11-slim
@@ -21,7 +22,7 @@ WORKDIR /app
 COPY --from=builder /root/.local /home/appuser/.local
 
 # Copy application code (owned by appuser so non-root user can read it)
-COPY --chown=appuser:appuser app.py /app/app.py
+COPY --chown=appuser:appuser app.py instrumentation.py /app/
 
 # Set environment
 ENV PATH=/home/appuser/.local/bin:$PATH

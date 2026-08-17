@@ -1,0 +1,4 @@
+flask
+opentelemetry-sdk
+opentelemetry-instrumentation-flask
+opentelemetry-exporter-otlp-proto-http

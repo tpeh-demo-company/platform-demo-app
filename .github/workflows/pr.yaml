@@ -1,0 +1,64 @@
+name: PR security scans
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  sast:
+    runs-on: ubuntu-slim
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          queries: security-and-quality
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+      - name: CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  secret-scan:
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dependency-scan:
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy fs (deps)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+          skip-dirs: ".venv,venv"
+
+  iac-scan:
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkov on K8s manifests and Helm
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: .
+          framework: kubernetes,helm,terraform
+          quiet: true
+          soft_fail: false   # block on findings
+          skip_check: CKV_K8S_8,CKV_K8S_9   # explicit suppressions with comments
