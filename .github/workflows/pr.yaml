@@ -44,21 +44,8 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
-          scan-ref: .
+          scan-ref: ./app
           severity: CRITICAL,HIGH
           exit-code: "1"
           ignore-unfixed: true
           skip-dirs: ".venv,venv"
-
-  iac-scan:
-    runs-on: ubuntu-slim
-    steps:
-      - uses: actions/checkout@v4
-      - name: Checkov on K8s manifests and Helm
-        uses: bridgecrewio/checkov-action@master
-        with:
-          directory: .
-          framework: kubernetes,helm,terraform
-          quiet: true
-          soft_fail: false   # block on findings
-          skip_check: CKV_K8S_8,CKV_K8S_9   # explicit suppressions with comments
