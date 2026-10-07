@@ -30,11 +30,11 @@ ENV PYTHONUNBUFFERED=1
 ENV FLASK_APP=app.py
 
 # Switch to non-root user
-USER appuser
+USER 1000
 
 # Health check
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health').read()" || exit 1
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health').read()"]
 
 # Expose port
 EXPOSE 5000

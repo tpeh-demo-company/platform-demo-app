@@ -23,6 +23,8 @@ jobs:
 
       - name: Install tools
         uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: "pipx:semgrep"
 
       - name: Run Semgrep on changed files
         run: semgrep ci
@@ -38,10 +40,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install tools
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: "aqua:gitleaks/gitleaks"
+
       - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gitleaks git --redact --verbose
 
   trivy-fs:
     name: Trivy filesystem
