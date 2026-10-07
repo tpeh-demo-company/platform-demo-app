@@ -23,6 +23,8 @@ jobs:
 
       - name: Install tools
         uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: "pipx:semgrep"
 
       - name: Run Semgrep on changed files
         run: semgrep ci
@@ -40,6 +42,8 @@ jobs:
 
       - name: Install tools
         uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: "aqua:gitleaks/gitleaks"
 
       - name: Run Gitleaks
         run: gitleaks git --redact --verbose
