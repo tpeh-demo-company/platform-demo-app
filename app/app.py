@@ -15,13 +15,13 @@ This app is designed to be deployed to Docker, Kubernetes, or run locally
 for evaluating deployment and platform UX.
 """
 
-import instrumentation  # must be first — initialises the OTel SDK before Flask loads
+import instrumentation  # noqa: F401, I001 — must be first: initialises the OTel SDK before Flask loads
 
 import json
 import time
 import uuid
-from typing import Dict, List, Tuple, Any
-from datetime import datetime
+from typing import Any
+from datetime import UTC, datetime
 
 from opentelemetry import metrics, trace
 from opentelemetry.trace import StatusCode
@@ -48,29 +48,29 @@ class InMemoryStore:
 
     def __init__(self):
         """Initialize empty item storage."""
-        self.items: Dict[str, Dict[str, Any]] = {}
+        self.items: dict[str, dict[str, Any]] = {}
 
-    def create(self, name: str, description: str = "") -> Dict[str, Any]:
+    def create(self, name: str, description: str = "") -> dict[str, Any]:
         """Create a new item."""
         item_id = str(uuid.uuid4())[:8]
         item = {
             "id": item_id,
             "name": name,
             "description": description,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
         self.items[item_id] = item
         return item
 
-    def read(self, item_id: str) -> Dict[str, Any] | None:
+    def read(self, item_id: str) -> dict[str, Any] | None:
         """Read a single item by ID."""
         return self.items.get(item_id)
 
-    def list_all(self) -> List[Dict[str, Any]]:
+    def list_all(self) -> list[dict[str, Any]]:
         """List all items."""
         return list(self.items.values())
 
-    def update(self, item_id: str, **kwargs) -> Dict[str, Any] | None:
+    def update(self, item_id: str, **kwargs) -> dict[str, Any] | None:
         """Update an item's fields."""
         if item_id not in self.items:
             return None
@@ -89,7 +89,7 @@ class InMemoryStore:
 store = InMemoryStore()
 
 
-def parse_json_body(body: str) -> Dict[str, Any]:
+def parse_json_body(body: str) -> dict[str, Any]:
     """
     Parse JSON request body.
 
@@ -112,7 +112,7 @@ def parse_json_body(body: str) -> Dict[str, Any]:
 
 def create_response(
     data: Any = None, status_code: int = 200, error: str | None = None
-) -> Tuple[str, int]:
+) -> tuple[str, int]:
     """
     Create a JSON response.
 
@@ -135,7 +135,7 @@ def create_response(
 class Application:
     """Simple WSGI-compatible web application."""
 
-    def __call__(self, environ: Dict[str, Any], start_response) -> List[str]:
+    def __call__(self, environ: dict[str, Any], start_response) -> list[str]:
         """
         WSGI application entry point.
 
@@ -218,7 +218,7 @@ class Application:
                     status_code=404, error=f"Endpoint {path} not found"
                 )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — top-level WSGI handler must return a 500
             response, status = create_response(
                 status_code=500, error=f"Internal server error: {e}"
             )
@@ -235,7 +235,7 @@ def create_flask_app():
     Returns Flask app if available, otherwise raw WSGI app.
     """
     try:
-        from flask import Flask, request, jsonify
+        from flask import Flask, jsonify, request
         from opentelemetry.instrumentation.flask import FlaskInstrumentor
 
         app = Flask(__name__)
