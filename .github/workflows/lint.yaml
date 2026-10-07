@@ -1,0 +1,56 @@
+# In case devs bypass pre-commit
+name: Lint
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  ruff:
+    name: Python lint
+    if: github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install tools
+        uses: jdx/mise-action@9149ea85001c7435d5a66bb127d6a1b6227cb0a5 # v5.0.0
+        with:
+          install_args: "aqua:astral-sh/ruff"
+
+      - name: Run ruff
+        run: ruff check app
+
+  actionlint:
+    name: Action lint
+    if: github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install tools
+        uses: jdx/mise-action@9149ea85001c7435d5a66bb127d6a1b6227cb0a5 # v5.0.0
+        with:
+          install_args: "aqua:rhysd/actionlint"
+
+      - name: Run actionlint
+        run: actionlint
+
+  hadolint:
+    name: Dockerfile lint
+    if: github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install tools
+        uses: jdx/mise-action@9149ea85001c7435d5a66bb127d6a1b6227cb0a5 # v5.0.0
+        with:
+          install_args: "aqua:hadolint/hadolint"
+
+      - name: Run hadolint
+        run: hadolint app/Dockerfile
