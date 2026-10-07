@@ -1,51 +1,64 @@
-name: PR security scans
+name: Security
 
 on:
   pull_request:
-    branches: [main]
+    branches:
+      - main
+    paths-ignore:
+      - '.github/**'
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
 
 jobs:
-  sast:
-    runs-on: ubuntu-slim
-    permissions:
-      security-events: write
-      actions: read
-      contents: read
+  semgrep:
+    name: Semgrep
+    if: github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: python
-          queries: security-and-quality
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
-      - name: CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
 
-  secret-scan:
-    runs-on: ubuntu-slim
+      - name: Install tools
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+
+      - name: Run Semgrep on changed files
+        run: semgrep ci
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+
+  gitleaks:
+    name: Gitleaks
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - name: Gitleaks secret scan
-        uses: gitleaks/gitleaks-action@v2
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  dependency-scan:
-    runs-on: ubuntu-slim
+  trivy-fs:
+    name: Trivy filesystem
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
-      - uses: actions/checkout@v4
-      - name: Trivy fs (deps)
-        uses: aquasecurity/trivy-action@master
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
-          scan-ref: ./app
+          scan-ref: .
+          format: json
+          output: trivy-results.json
           severity: CRITICAL,HIGH
-          exit-code: "1"
           ignore-unfixed: true
-          skip-dirs: ".venv,venv"
+          exit-code: '1'
